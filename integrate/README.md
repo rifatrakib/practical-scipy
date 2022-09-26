@@ -34,3 +34,18 @@ is desired (and the fact that _this integral can be computed_ as `special.expn(n
 The function which is integrated can even use the `quad` argument (though the `error bound` may _underestimate_ the error due to possible `numerical error` in the _integrand_ from the use of `quad`). The integral in this case is
 
 $I_{n}=\int_{0}^{\infty}\int_{1}^{\infty}\frac{e^{-xt}}{t^{n}}\, dt\, dx=\frac{1}{n}$.
+
+
+## General multiple integration (`dblquad`, `tplquad`, `nquad`)
+
+The mechanics for _double and triple integration_ have been wrapped up into the functions `dblquad` and `tplquad`. These functions take the `function to integrate` and `four, or six arguments`, respectively. _The limits of all inner integrals need to be defined as functions_.
+
+As example for `non-constant limits` consider the integral
+
+$I=\int_{y=0}^{1/2}\int_{x=0}^{1-2y} x y \, dx\, dy=\frac{1}{96}$.
+
+This `integral` can be evaluated using the expression below (Note the use of the `non-constant lambda functions` for the `upper limit` of the `inner integral`).
+
+For `n-fold integration`, `scipy` provides the function `nquad`. The `integration bounds` are an `iterable` object: either _a list of constant bounds_, or _a list of functions for the non-constant integration bounds_. The `order of integration` (and therefore the `bounds`) is from the _innermost integral_ to the _outermost_ one.
+
+Note that the _order of arguments for `f` **must match** the order of the integration bounds; `i`_.e., the `inner integral` with respect to $t$ is on the interval $[1, \infty]$ and the `outer integral` with respect to $x$ is on the interval $[0, \infty]$. `Non-constant integration bounds` can be treated in a similar manner.
