@@ -49,3 +49,12 @@ This `integral` can be evaluated using the expression below (Note the use of the
 For `n-fold integration`, `scipy` provides the function `nquad`. The `integration bounds` are an `iterable` object: either _a list of constant bounds_, or _a list of functions for the non-constant integration bounds_. The `order of integration` (and therefore the `bounds`) is from the _innermost integral_ to the _outermost_ one.
 
 Note that the _order of arguments for `f` **must match** the order of the integration bounds; `i`_.e., the `inner integral` with respect to $t$ is on the interval $[1, \infty]$ and the `outer integral` with respect to $x$ is on the interval $[0, \infty]$. `Non-constant integration bounds` can be treated in a similar manner.
+
+
+## Integrating using Samples
+
+If the samples are _equally-spaced_ and the _number of samples_ available is $2^{k}+1$ for some integer $k$, then __Romberg `romb` integration__ can be used to obtain _high-precision estimates of the integral_ using the available samples. _`Romberg integration`_ uses the `trapezoid rule` at `step-sizes` related by a `power of two` and then performs _`Richardson extrapolation`_ on these estimates to approximate the integral with a higher degree of accuracy.
+
+In case of _arbitrary spaced samples_, the two functions `trapezoid` and `simpson` are available. They are using _`Newton-Coates formulas` of order 1 and 2 respectively_ to perform integration. The `trapezoidal rule` approximates the function as a _straight line between adjacent points_, while `Simpson`'s rule approximates the function between _three adjacent points as a parabola_.
+
+For an _odd number of samples_ that are `equally spaced Simpson's rule` is __exact__ if the function is a _polynomial of order 3 or less_. If the samples are _not equally spaced_, then the result is _**exact** only if the function is a `polynomial of order 2 or less`_.
