@@ -101,3 +101,71 @@ The solution of `solve_ivp` with its _standard parameters_ shows a _big deviatio
 To specify _user defined time points_ for the solution of `solve_ivp`, `solve_ivp` offers __two possibilities__ that can also be used _complementarily_. By passing the `t_eval` option to the function call `solve_ivp` returns the solutions of these time points of `t_eval` in its output.
 
 If the `jacobian matrix` of function is known, it can be passed to the `solve_ivp` to _achieve better results_. Please be aware however that the _default integration method_ __`RK45`__ _**does not support** jacobian matrices_ and thereby another integration method has to be chosen. One of the integration methods that support a jacobian matrix is the `Radau` method.
+
+
+## Solving a system with a `banded Jacobian matrix`
+
+`odeint` can be told that the `Jacobian` is __banded__. For a _large system of differential equations_ that are known to be __stiff__, this can `improve performance significantly`.
+
+As an example, we'll solve the `1-D Gray-Scott partial differential equations` using the _method of lines [`MOL`]_. The `Gray-Scott equations` for the functions $u(x, t)$ and $v(x, t)$ on the interval $x \in [0, L]$ are
+
+$\frac{\partial u}{\partial t} = D_u \frac{\partial^2 u}{\partial x^2} - uv^2 + f(1-u) \\$
+$\frac{\partial v}{\partial t} = D_v \frac{\partial^2 v}{\partial x^2} + uv^2 - (f + k)v \\$
+
+where $D_u$ and $D_v$ are the `diffusion coefficients` of the components $u$ and $v$, respectively, and $f$ and $k$ are `constants`. (For more information about the system, see [http://groups.csail.mit.edu/mac/projects/amorphous/GrayScott/](http://groups.csail.mit.edu/mac/projects/amorphous/GrayScott/))
+
+We'll assume `Neumann boundary conditions` (i.e., `"no flux"`):
+
+$\frac{\partial u}{\partial x}(0,t) = 0, \quad$
+$\frac{\partial v}{\partial x}(0,t) = 0, \quad$
+$\frac{\partial u}{\partial x}(L,t) = 0, \quad$
+$\frac{\partial v}{\partial x}(L,t) = 0$
+
+To apply the `method of lines`, we __discretize__ the $x$ variable by defining the `uniformly spaced grid` of $N$ points $\left\{x_0, x_1, \ldots, x_{N-1}\right\}$, with $x_0 = 0$ and $x_{N-1} = L$. We define $u_j(t) \equiv u(x_k, t)$ and $v_j(t) \equiv v(x_k, t)$, and replace the $x$ derivatives with _finite differences_. That is,
+
+$\frac{\partial^2 u}{\partial x^2}(x_j, t) \rightarrow
+    \frac{u_{j-1}(t) - 2 u_{j}(t) + u_{j+1}(t)}{(\Delta x)^2}$
+
+We then have a `system` of $2N$ `ordinary differential equations`:
+
+$\frac{du_j}{dt} = \frac{D_u}{(\Delta x)^2} \left(u_{j-1} - 2 u_{j} + u_{j+1}\right)
+          -u_jv_j^2 + f(1 - u_j) \\
+    \frac{dv_j}{dt} = \frac{D_v}{(\Delta x)^2} \left(v_{j-1} - 2 v_{j} + v_{j+1}\right)
+          + u_jv_j^2 - (f + k)v_j$
+
+For convenience, the $(t)$ arguments have been dropped.
+
+To __enforce__ the `boundary conditions`, we introduce `"ghost" points` $x_{-1}$ and $x_N$, and define $u_{-1}(t) \equiv u_1(t)$, $u_N(t) \equiv u_{N-2}(t)$; $v_{-1}(t)$ and $v_N(t)$
+are defined analogously.
+
+Then,
+
+$\frac{du_0}{dt} = \frac{D_u}{(\Delta x)^2} \left(2u_{1} - 2 u_{0}\right)
+          -u_0v_0^2 + f(1 - u_0) \\
+    \frac{dv_0}{dt} = \frac{D_v}{(\Delta x)^2} \left(2v_{1} - 2 v_{0}\right)
+          + u_0v_0^2 - (f + k)v_0$
+
+and
+
+$\frac{du_{N-1}}{dt} = \frac{D_u}{(\Delta x)^2} \left(2u_{N-2} - 2 u_{N-1}\right)
+          -u_{N-1}v_{N-1}^2 + f(1 - u_{N-1}) \\
+    \frac{dv_{N-1}}{dt} = \frac{D_v}{(\Delta x)^2} \left(2v_{N-2} - 2 v_{N-1}\right)
+          + u_{N-1}v_{N-1}^2 - (f + k)v_{N-1}$
+
+We can now starting implementing this system in code. We must combine $\{u_k\}$ and $\{v_k\}$ into a single vector of length $2N$. The two obvious choices are $\{u_0, u_1, \ldots, u_{N-1}$, $v_0, v_1, \ldots, v_{N-1}\}$ and $\{u_0, v_0, u_1, v_1, \ldots, u_{N-1}$, $v_{N-1}\}$. Mathematically, it does not matter, but the choice affects how efficiently `odeint` can solve the system. The reason is in how the `order` affects the _pattern of the nonzero elements_ of the `Jacobian matrix`.
+
+When the variables are __interleaved__, the _`bandwidth` is much smaller_. The `main diagonal` and the `two diagonals immediately above` and the `two immediately below` the main diagonal are the __nonzero diagonals__. This is important, because the inputs `mu` and `ml` of `odeint` are the _upper and lower bandwidths_ of the `Jacobian matrix`. When the variables are __interleaved__, `mu` and `ml` are 2. When the variables are stacked with $\{v_k\}$ following $\{u_k\}$, the _upper and lower bandwidths_ are N.
+
+With that decision made, we can write the function that implements the system of differential equations.
+
+* First, we define the functions for the `source` and `reaction` terms of the system.
+
+* Next, we define the function that computes the right-hand side of the system of differential equations.
+
+We won't implement a function to compute the `Jacobian`, but we will tell `odeint` that the _Jacobian matrix is banded_. This allows the `underlying solver (LSODA)` to _avoid computing values that it knows are zero_. For a _large system_, this `improves the performance significantly`.
+
+* First, we define the required inputs.
+
+* Time the computation without taking advantage of the banded structure of the Jacobian matrix.
+
+* Now set `ml=2` and `mu=2`, so `odeint` knows that the `Jacobian matrix` is __banded__.
